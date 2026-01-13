@@ -11,9 +11,11 @@ ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarEle
 const MapWithNoSSR = dynamic(() => import('@/components/MapComponent'), {
   ssr: false,
   loading: () => (
-    <div className="h-full w-full flex flex-col items-center justify-center bg-slate-50 gap-4">
-      <div className="w-12 h-12 border-4 border-green-700 border-t-transparent rounded-full animate-spin"></div>
-      <p className="text-slate-500 font-bold">전국 스타벅스 정보를 불러오는 중...</p>
+    <div className="h-full w-full flex items-center justify-center bg-slate-50">
+      <div className="flex flex-col items-center gap-2">
+        <div className="w-8 h-8 border-4 border-green-700 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-sm font-bold text-slate-500">데이터 로딩 중...</p>
+      </div>
     </div>
   )
 });
@@ -76,13 +78,16 @@ export default function Home() {
       .reduce((r, [k, v]) => ({ ...r, [k]: v }), {});
   }, [filteredStores, selectedSido]);
 
+  // 기존 추천 로직 완벽 복구
   const recommendation = useMemo(() => {
     if (filteredStores.length === 0) return null;
+
     let univCount = 0; let officeCount = 0; let hipCount = 0; let dtCount = 0;
 
     filteredStores.forEach(s => {
       const name = (s.s_name || "").toLowerCase();
       const addr = (s.addr || "").toLowerCase();
+      
       if (name.includes("univ") || name.includes("대학") || name.includes("학교")) univCount++;
       if (name.includes("타워") || name.includes("파이낸스") || name.includes("삼성") || name.includes("역") || addr.includes("테헤란")) officeCount++;
       if (addr.includes("성수") || addr.includes("가로수") || addr.includes("연남") || addr.includes("이태원")) hipCount++;
@@ -105,7 +110,7 @@ export default function Home() {
       message = "출퇴근 및 점심시간대 회전율이 폭발적인 상권입니다.";
       strategy = "모바일 픽업존 및 퀵 카운터 최적화";
       icon = <Building2 className="w-5 h-5 text-slate-700" />;
-    } else if (hipCount > 0) {
+    } else if (hipCount > 0 || selectedGugun === '성동구' || selectedGugun === '마포구') {
       type = "핫플레이스";
       message = "2030 트렌드 세터의 방문이 잦은 지역입니다.";
       strategy = "리저브 전용 매장 및 시즌 한정 MD 배치";
@@ -118,7 +123,7 @@ export default function Home() {
     }
 
     return { type, message, strategy, icon };
-  }, [filteredStores]);
+  }, [filteredStores, selectedGugun]);
 
   const handleSidoChange = (sido: string) => {
     setSelectedSido(sido);
@@ -127,54 +132,65 @@ export default function Home() {
       setMapCenter([36.5, 127.5]); setMapZoom(7);
     } else {
       const target = allStores.find(s => s.sido_name === sido);
-      if (target) { setMapCenter([parseFloat(target.lat), parseFloat(target.lot)]); setMapZoom(11); }
+      if (target) {
+        setMapCenter([parseFloat(target.lat), parseFloat(target.lot)]);
+        setMapZoom(11);
+      }
     }
   };
 
   return (
     <div className="flex flex-col md:flex-row h-[100dvh] w-full bg-white text-slate-900 overflow-hidden font-sans">
       
-      {/* 🎛️ 사이드 패널 */}
-      <div className="w-full h-[40%] md:h-full md:w-[380px] bg-white border-b md:border-b-0 md:border-r border-slate-100 flex flex-col z-20 shadow-2xl transition-all">
-        <div className="p-6 pb-4">
+      {/* 🗺️ 지도 섹션 (모바일에서 위 60% 고정) */}
+      <div className="w-full h-[60%] md:h-full md:flex-1 relative order-1 md:order-2 border-b md:border-b-0">
+        <MapWithNoSSR stores={filteredStores} center={mapCenter} zoom={mapZoom} />
+      </div>
+
+      {/* 🎛️ 사이드 패널 (모바일에서 아래 40% 고정) */}
+      <div className="w-full h-[40%] md:h-full md:w-[380px] bg-white order-2 md:order-1 flex flex-col z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] md:shadow-xl transition-all">
+        
+        {/* 헤더 */}
+        <div className="p-5 border-b border-slate-100">
           <div className="flex items-center gap-2 mb-1">
-            <div className="bg-green-700 p-2 rounded-xl shadow-lg">
+            <div className="bg-[#007042] p-1.5 rounded-lg shadow-md">
               <Coffee className="text-white w-5 h-5" />
             </div>
-            <h1 className="text-xl font-black text-slate-800 tracking-tight">
-              스타벅스 <span className="text-green-700 font-bold underline decoration-4 underline-offset-4 decoration-green-100">입지 분석</span>
+            <h1 className="text-lg font-black text-slate-800 tracking-tight">
+              스타벅스 <span className="text-[#007042] font-bold">입지 분석</span>
             </h1>
           </div>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2 ml-1">Location Insight Dashboard</p>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 space-y-8 pb-10 custom-scrollbar">
+        {/* 컨텐츠 영역 */}
+        <div className="flex-1 overflow-y-auto px-5 py-6 space-y-6">
+          
           {/* 필터 섹션 */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="flex justify-between items-end">
-              <label className="text-xs font-black text-slate-400 flex items-center gap-1.5 uppercase">
-                <Filter size={13} /> 지역 설정
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                <Filter size={12} /> 지역 설정
               </label>
-              <span className="text-[10px] bg-green-50 px-2 py-0.5 rounded-full text-green-700 font-black">
+              <span className="text-[10px] bg-green-50 px-2 py-0.5 rounded-full text-[#007042] font-black">
                 {filteredStores.length.toLocaleString()} 매장
               </span>
             </div>
             
-            <div className="grid gap-3">
-              <div className="relative group">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="relative">
                 <select 
-                  className="w-full pl-3 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-green-50 focus:border-green-600 outline-none appearance-none transition-all cursor-pointer"
+                  className="w-full pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-[#007042] outline-none appearance-none"
                   value={selectedSido}
                   onChange={(e) => handleSidoChange(e.target.value)}
                 >
                   <option value="All">전국 전체</option>
                   {SIDO_CODES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
-                <Search className="absolute right-3 top-3.5 text-slate-400 w-4 h-4 pointer-events-none group-hover:text-green-600 transition-colors" />
+                <Search className="absolute right-2.5 top-3 text-slate-300 w-4 h-4 pointer-events-none" />
               </div>
               
               <select 
-                className="w-full px-3 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-green-50 outline-none appearance-none disabled:opacity-30 transition-all cursor-pointer"
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-[#007042] outline-none appearance-none disabled:opacity-30"
                 disabled={selectedSido === 'All'}
                 value={selectedGugun}
                 onChange={(e) => {
@@ -183,49 +199,43 @@ export default function Home() {
                   if (target) { setMapCenter([parseFloat(target.lat), parseFloat(target.lot)]); setMapZoom(13); }
                 }}
               >
-                <option value="All">시/군/구 전체</option>
+                <option value="All">구/군 전체</option>
                 {gugunList.map(g => <option key={g} value={g}>{g}</option>)}
               </select>
             </div>
           </div>
 
-          {/* AI 추천 카드 */}
+          {/* AI 분석 리포트 */}
           {recommendation && (
-            <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-3xl p-5 border border-green-500 shadow-xl shadow-green-100 relative overflow-hidden group">
-              <div className="absolute -right-6 -bottom-6 text-white/10 group-hover:scale-125 transition-transform duration-700">
-                <Coffee size={120} />
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-4 border border-green-100">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="p-1.5 bg-white rounded-lg shadow-sm">
+                  {recommendation.icon}
+                </div>
+                <h3 className="font-black text-slate-800 text-sm">{recommendation.type}</h3>
               </div>
-              <div className="relative z-10">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="p-2 bg-white/20 backdrop-blur-md rounded-xl">
-                    <span className="text-white">{recommendation.icon}</span>
-                  </div>
-                  <h3 className="font-black text-white text-lg tracking-tight">{recommendation.type}</h3>
-                </div>
-                <p className="text-xs text-green-50 leading-relaxed mb-4 font-medium italic">
-                  "{recommendation.message}"
+              <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                {recommendation.message}
+              </p>
+              <div className="bg-white/80 p-2.5 rounded-xl border border-green-200">
+                <p className="text-[11px] font-bold text-[#007042]">
+                  💡 전략: {recommendation.strategy}
                 </p>
-                <div className="bg-white/10 backdrop-blur-sm p-3 rounded-2xl border border-white/20">
-                  <p className="text-[11px] font-bold text-white leading-tight">
-                    💡 <span className="ml-1 opacity-90">전략: {recommendation.strategy}</span>
-                  </p>
-                </div>
               </div>
             </div>
           )}
 
           {/* 차트 섹션 */}
-          <div className="space-y-4">
-            <label className="text-xs font-black text-slate-400 uppercase tracking-widest">지역별 분포 점유율</label>
-            <div className="h-44 w-full bg-slate-50/50 rounded-3xl p-4 border border-slate-100">
+          <div className="space-y-3">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">주요 분포 현황</label>
+            <div className="h-32 w-full">
               <Bar 
                 data={{
                   labels: Object.keys(regionStats),
                   datasets: [{
                     data: Object.values(regionStats),
-                    backgroundColor: '#15803d',
-                    borderRadius: 8,
-                    barThickness: 16,
+                    backgroundColor: '#007042',
+                    borderRadius: 4,
                   }]
                 }}
                 options={{ 
@@ -233,7 +243,7 @@ export default function Home() {
                   maintainAspectRatio: false, 
                   plugins: { legend: { display: false } },
                   scales: {
-                    x: { grid: { display: false }, ticks: { font: { size: 10, weight: 'bold' }, color: '#94a3b8' } },
+                    x: { grid: { display: false }, ticks: { font: { size: 10, weight: 'bold' } } },
                     y: { display: false }
                   }
                 }}
@@ -241,11 +251,6 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* 🗺️ 지도 섹션 */}
-      <div className="flex-1 relative h-[60%] md:h-full">
-        <MapWithNoSSR stores={filteredStores} center={mapCenter} zoom={mapZoom} />
       </div>
     </div>
   );
