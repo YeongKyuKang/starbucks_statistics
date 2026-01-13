@@ -1,6 +1,7 @@
 'use client';
 
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import MarkerClusterGroup from 'react-leaflet-cluster'; // ✨ 핵심 추가
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
@@ -37,28 +38,32 @@ export default function MapComponent({ stores, center, zoom }: MapProps) {
       <ChangeView center={center} zoom={zoom} />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" // ✨ 좀 더 깔끔한 지도 스타일로 변경
       />
       
-      {/* 🔴 수정된 부분: key를 s_code 대신 (매장명 + 인덱스) 조합으로 변경 */}
-      {stores.map((store, index) => (
-        <Marker 
-          key={`${store.s_name}-${index}`} 
-          position={[parseFloat(store.lat), parseFloat(store.lot)]}
-          icon={icon}
-        >
-          <Popup>
-            <div className="p-2">
-              <h3 className="font-bold text-lg">{store.s_name}</h3>
-              <p className="text-sm text-gray-600">{store.addr}</p>
-              {/* 데이터에 없는 필드(gugun_name 등)는 화면에 안 나오게 처리하거나 안전하게 표시 */}
-              <div className="mt-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded inline-block">
-                Starbucks Store
+      {/* 🚀 성능 핵심: 클러스터링 적용 (chunkedLoading으로 렌더링 최적화) */}
+      <MarkerClusterGroup 
+        chunkedLoading 
+        spiderfyOnMaxZoom={true}
+      >
+        {stores.map((store, index) => (
+          <Marker 
+            key={`${store.s_name}-${index}`} 
+            position={[parseFloat(store.lat), parseFloat(store.lot)]}
+            icon={icon}
+          >
+            <Popup>
+              <div className="p-1 min-w-[200px]">
+                <h3 className="font-bold text-base mb-1 text-green-700">{store.s_name}</h3>
+                <p className="text-xs text-gray-600 border-t pt-1">{store.addr}</p>
+                <div className="mt-2 text-[10px] bg-gray-100 px-2 py-1 rounded inline-block text-gray-500">
+                  {store.sido_name} {store.gugun_name}
+                </div>
               </div>
-            </div>
-          </Popup>
-        </Marker>
-      ))}
+            </Popup>
+          </Marker>
+        ))}
+      </MarkerClusterGroup>
     </MapContainer>
   );
 }
